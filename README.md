@@ -46,10 +46,16 @@ Microservices-based system for managing medical appointments, built with Java 21
    docker compose up -d
 ```
 
-3. Run a service (example with patient-service):
+3. Create your local config for each service (git-ignored):
+```bash
+   cp patient-service/src/main/resources/application-local.properties.example \
+      patient-service/src/main/resources/application-local.properties
+```
+
+4. Run a service:
 ```bash
    cd patient-service
-   ./mvnw spring-boot:run
+   SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
 ```
 
 ### API Documentation

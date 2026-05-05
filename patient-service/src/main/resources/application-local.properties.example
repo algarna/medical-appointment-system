@@ -1,0 +1,6 @@
+# Copy this file to application-local.properties (git-ignored)
+# and fill in your local values
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/patients_db
+spring.datasource.username=
+spring.datasource.password=

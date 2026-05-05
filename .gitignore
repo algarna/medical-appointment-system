@@ -10,3 +10,5 @@ target/
 
 # macOS
 .DS_Store
+
+*-local.properties
