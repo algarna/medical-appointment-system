@@ -116,3 +116,26 @@ The service applies null checks manually: only non-null fields in the request ov
 **Consequences:**
 - Simple and explicit — easy to read and test.
 - If the number of updatable fields grows, a more systematic approach like `Optional` fields or JSON Merge Patch would be worth considering.
+
+---
+
+## ADR-008 — Centralized exception handling with @RestControllerAdvice
+
+**Date:** 2026-05-05  
+**Status:** Accepted
+
+**Context:**  
+Error handling should be consistent across all endpoints. Controllers should not contain try/catch blocks for domain exceptions.
+
+**Decision:**  
+All exception handling is centralized in `GlobalExceptionHandler` using `@RestControllerAdvice`. Four cases are covered:
+- `PatientNotFoundException` → 404 NOT FOUND
+- `IllegalArgumentException` → 409 CONFLICT (used for duplicate email/identityNumber)
+- `MethodArgumentNotValidException` → 400 BAD REQUEST with per-field validation errors
+- `Exception` (generic fallback) → 500 INTERNAL SERVER ERROR with no internal details exposed
+
+**Consequences:**
+- Controllers stay clean — no error handling logic.
+- Error responses are consistent in structure across all endpoints.
+- `ErrorResponse` is a record defined as an inner class of `GlobalExceptionHandler` — it is only used there, so no separate file is needed.
+- Internal error details are never exposed to the client in the generic handler.
