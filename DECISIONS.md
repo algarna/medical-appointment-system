@@ -65,3 +65,54 @@ Named the field `identityNumber` instead of `dni` to keep the domain model count
 **Consequences:**
 - No format validation enforced at the database level beyond uniqueness.
 - Format validation can be added per-country via Bean Validation if needed.
+
+---
+
+## ADR-005 — Records for DTOs, no Lombok
+
+**Date:** 2026-05-05  
+**Status:** Accepted
+
+**Context:**  
+DTOs are immutable data carriers with no business logic. Options considered were Lombok `@Data`/`@Value`, MapStruct, or Java records.
+
+**Decision:**  
+Used Java records for all DTOs. Records are immutable by design, require no external dependencies, and are idiomatic Java 16+.
+
+**Consequences:**
+- No MapStruct or additional mapping libraries needed at this scale.
+- `PatientResponse` includes a static factory method `from(Patient)` to encapsulate mapping logic.
+- If the number of entities grows significantly, MapStruct would be the natural next step.
+
+---
+
+## ADR-006 — identityNumber excluded from UpdatePatientRequest
+
+**Date:** 2026-05-05  
+**Status:** Accepted
+
+**Context:**  
+A patient's identity document number is a stable identifier that should not change once registered, similar to how medical record numbers work in real healthcare systems.
+
+**Decision:**  
+`identityNumber` is not included in `UpdatePatientRequest`. It can only be set at creation time.
+
+**Consequences:**
+- If a correction is needed, it would require a dedicated endpoint with stricter authorization — not implemented in this version.
+
+---
+
+## ADR-007 — Partial update via null checks, no PATCH library
+
+**Date:** 2026-05-05  
+**Status:** Accepted
+
+**Context:**  
+`UpdatePatientRequest` has no required fields — all are optional. The service needs to decide which fields to update.
+
+**Decision:**  
+The service applies null checks manually: only non-null fields in the request overwrite the existing entity values. No JSON Merge Patch or PATCH-specific libraries used.
+
+**Consequences:**
+- Simple and explicit — easy to read and test.
+- If the number of updatable fields grows, a more systematic approach like `Optional` fields or JSON Merge Patch would be worth considering.
