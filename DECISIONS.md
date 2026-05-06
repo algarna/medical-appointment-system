@@ -139,3 +139,71 @@ All exception handling is centralized in `GlobalExceptionHandler` using `@RestCo
 - Error responses are consistent in structure across all endpoints.
 - `ErrorResponse` is a record defined as an inner class of `GlobalExceptionHandler` — it is only used there, so no separate file is needed.
 - Internal error details are never exposed to the client in the generic handler.
+
+---
+
+## ADR-009 — @Transactional(readOnly = true) at class level in services
+
+**Date:** 2026-05-06  
+**Status:** Accepted
+
+**Context:**  
+Most service methods are read operations. Marking each one individually is error-prone and verbose.
+
+**Decision:**  
+`@Transactional(readOnly = true)` is applied at class level in service classes. Write methods override with `@Transactional` explicitly.
+
+**Consequences:**
+- All read methods benefit from read-only optimizations automatically.
+- Write methods are explicit and visible — easier to audit.
+
+---
+
+## ADR-010 — Duplicate validation before persist
+
+**Date:** 2026-05-06  
+**Status:** Accepted
+
+**Context:**  
+Email and identityNumber have unique constraints at the database level. Letting the DB throw a constraint violation produces an obscure error for the client.
+
+**Decision:**  
+The service validates uniqueness with `existsByEmail` and `existsByIdentityNumber` before persisting. On conflict, throws `IllegalArgumentException` which `GlobalExceptionHandler` maps to 409 CONFLICT with a descriptive message.
+
+**Consequences:**
+- Clear, descriptive error messages for the client.
+- Slight race condition risk under extreme concurrency — acceptable for this scope.
+
+---
+
+## ADR-011 — Controller responsibility limited to HTTP concerns
+
+**Date:** 2026-05-06  
+**Status:** Accepted
+
+**Context:**  
+Controllers tend to accumulate business logic over time, making them hard to test and maintain.
+
+**Decision:**  
+Controllers handle only HTTP: request mapping, input validation trigger (@Valid), response status, and delegation to the service. No business logic in controllers.
+
+**Consequences:**
+- Services are testable without HTTP context.
+- Clear separation of concerns across layers.
+
+---
+
+## ADR-012 — @PageableDefault for pagination defaults
+
+**Date:** 2026-05-06  
+**Status:** Accepted
+
+**Context:**  
+List endpoints need sensible defaults when the client does not specify pagination parameters.
+
+**Decision:**  
+`@PageableDefault(size = 20, sort = "lastName")` sets page size to 20 and default sort by last name. Client can override with `?page=0&size=10&sort=firstName`.
+
+**Consequences:**
+- Predictable behavior for clients that don't specify pagination.
+- No unbounded queries — always paginated.
