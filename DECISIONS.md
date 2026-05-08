@@ -207,3 +207,73 @@ List endpoints need sensible defaults when the client does not specify paginatio
 **Consequences:**
 - Predictable behavior for clients that don't specify pagination.
 - No unbounded queries — always paginated.
+
+---
+
+## ADR-013 — Multi-stage Docker build
+
+**Date:** 2026-05-07  
+**Status:** Accepted
+
+**Context:**  
+A single-stage Docker build using the JDK image produces a large image (~500MB) that includes the compiler and build tools, which are not needed at runtime.
+
+**Decision:**  
+Two-stage build: `eclipse-temurin:21-jdk-alpine` for compilation, `eclipse-temurin:21-jre-alpine` for runtime. The final image only contains the JRE and the application jar.
+
+**Consequences:**
+- Final image is ~100MB smaller than a single-stage JDK build.
+- Reduced attack surface — no compiler or build tools in production.
+- Layer caching: dependencies are downloaded before source code is copied, so unchanged dependencies don't trigger a re-download on rebuild.
+
+---
+
+## ADR-014 — Non-root container user
+
+**Date:** 2026-05-07  
+**Status:** Accepted
+
+**Context:**  
+Running containers as root is a security anti-pattern. If an attacker exploits a vulnerability in the application, they would have root access to the container.
+
+**Decision:**  
+A dedicated system user `medapp` is created in the Dockerfile. The application jar is owned by this user and the container runs as `medapp`.
+
+**Consequences:**
+- Reduced blast radius if the application is compromised.
+- Standard practice for production container deployments.
+
+---
+
+## ADR-015 — Docker profile for container networking
+
+**Date:** 2026-05-07  
+**Status:** Accepted
+
+**Context:**  
+When running inside Docker Compose, services communicate via container names, not `localhost`. The `local` profile uses `localhost` which only works when running the app directly on the host machine.
+
+**Decision:**  
+A dedicated `application-docker.properties` profile sets the datasource URL using `patients-db` as the hostname, matching the Docker Compose service name. Activated via `SPRING_PROFILES_ACTIVE=docker` in docker-compose.yml.
+
+**Consequences:**
+- Clean separation between local development and containerized environments.
+- `application-docker.properties` is committed to the repo — it contains no credentials, only the hostname reference.
+
+---
+
+## ADR-016 — OpenAPI annotations on controllers only
+
+**Date:** 2026-05-07  
+**Status:** Accepted
+
+**Context:**  
+Swagger annotations can be added at multiple levels: controller, service, DTO. Over-annotating creates noise and makes code harder to read.
+
+**Decision:**  
+OpenAPI annotations are added only at the controller layer: `@Tag` on the class, `@Operation` and `@ApiResponses` on each endpoint, `@Parameter` on path variables. DTOs and services are annotation-free.
+
+**Consequences:**
+- Controllers are the HTTP contract — annotations belong there.
+- Services and DTOs remain clean and focused on business logic.
+- `ErrorResponse` schema is referenced directly from `GlobalExceptionHandler` to keep error documentation consistent.
