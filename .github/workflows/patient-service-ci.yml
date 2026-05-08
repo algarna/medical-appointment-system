@@ -5,10 +5,12 @@ on:
     branches: [ main ]
     paths:
       - 'patient-service/**'
+      - '*.md'
   pull_request:
     branches: [ main ]
     paths:
       - 'patient-service/**'
+      - '*.md'
   workflow_dispatch:
 
 jobs:
