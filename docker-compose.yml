@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  patient-service:
+    build:
+      context: ./patient-service
+      dockerfile: Dockerfile
+    container_name: patient-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      POSTGRES_PATIENTS_DB: ${POSTGRES_PATIENTS_DB}
+      POSTGRES_PATIENTS_USER: ${POSTGRES_PATIENTS_USER}
+      POSTGRES_PATIENTS_PASSWORD: ${POSTGRES_PATIENTS_PASSWORD}
+    depends_on:
+      patients-db:
+        condition: service_healthy
+
   # appointments-db and kafka coming soon
 
 volumes:
