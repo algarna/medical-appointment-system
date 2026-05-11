@@ -6,11 +6,13 @@ on:
     paths:
       - 'patient-service/**'
       - '*.md'
+      - '*.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'patient-service/**'
       - '*.md'
+      - '*.yml'
   workflow_dispatch:
 
 jobs:
