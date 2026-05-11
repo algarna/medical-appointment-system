@@ -277,3 +277,91 @@ OpenAPI annotations are added only at the controller layer: `@Tag` on the class,
 - Controllers are the HTTP contract — annotations belong there.
 - Services and DTOs remain clean and focused on business logic.
 - `ErrorResponse` schema is referenced directly from `GlobalExceptionHandler` to keep error documentation consistent.
+
+---
+
+## ADR-017 — WebClient in blocking mode for inter-service HTTP calls
+
+**Date:** 2026-05-09  
+**Status:** Accepted
+
+**Context:**  
+The appointment-service needs to validate that a patient exists before creating an appointment. Options considered: RestTemplate (deprecated), WebClient (reactive), OpenFeign (declarative).
+
+**Decision:**  
+Used WebClient in blocking mode (`.block()`). The appointment-service is a synchronous MVC application, not reactive. WebClient is the modern replacement for RestTemplate, and blocking it keeps the programming model consistent with the rest of the service.
+
+**Consequences:**
+- No reactive programming model introduced — simpler codebase.
+- WebClient handles connection errors via `WebClientRequestException`, mapped to 503.
+- If the system evolves to high concurrency, switching to non-blocking WebClient is straightforward.
+
+---
+
+## ADR-018 — 422 UNPROCESSABLE_CONTENT for cross-service validation failures
+
+**Date:** 2026-05-09  
+**Status:** Accepted
+
+**Context:**  
+When the appointment-service cannot create an appointment because the referenced patient does not exist, the appropriate HTTP status code is debatable.
+
+**Decision:**  
+Returns `422 UNPROCESSABLE_CONTENT` when the patient is not found in patient-service. The request is well-formed and the endpoint exists, but the business rule cannot be satisfied. This is semantically more precise than `404` (which would imply the appointment endpoint doesn't exist) or `400` (which implies a malformed request).
+
+**Consequences:**
+- `404` is reserved for appointment not found.
+- `422` clearly signals a cross-service business rule violation.
+- `503` is reserved for when patient-service is unreachable.
+
+---
+
+## ADR-019 — PATCH for state transitions, not PUT
+
+**Date:** 2026-05-09  
+**Status:** Accepted
+
+**Context:**  
+Cancelling and completing an appointment are partial updates — only the status and related fields change. Two options: `PUT /appointments/{id}` with a full body, or `PATCH /appointments/{id}/cancel`.
+
+**Decision:**  
+Used `PATCH` with sub-resource paths: `PATCH /appointments/{id}/cancel` and `PATCH /appointments/{id}/complete`. This is more expressive and RESTful — the action is explicit in the URL, and the body only carries additional data (cancellation reason).
+
+**Consequences:**
+- Adding new state transitions in the future doesn't require changing existing endpoints.
+- Clients know exactly what operation they're performing from the URL alone.
+
+---
+
+## ADR-020 — Appointments are immutable once scheduled
+
+**Date:** 2026-05-09  
+**Status:** Accepted
+
+**Context:**  
+Should patients be able to reschedule appointments (change date, doctor, specialty)?
+
+**Decision:**  
+No update endpoint for appointments. The only allowed state transitions are SCHEDULED → CANCELLED and SCHEDULED → COMPLETED. To reschedule, the patient cancels and creates a new appointment. This keeps the appointment history clean and auditable.
+
+**Consequences:**
+- No `UpdateAppointmentRequest` DTO needed.
+- Full appointment history is preserved — cancellations are never overwritten.
+- Simpler state machine: only two valid transitions from SCHEDULED.
+
+---
+
+## ADR-021 — Duplicate appointment detection before persisting
+
+**Date:** 2026-05-09  
+**Status:** Accepted
+
+**Context:**  
+A patient could accidentally create two appointments with the same doctor at the same date and time.
+
+**Decision:**  
+Before persisting, the service checks for an existing non-cancelled appointment with the same `patientId`, `doctorName` and `appointmentDate`. If found, returns `409 CONFLICT`.
+
+**Consequences:**
+- Cancelled appointments are excluded from duplicate detection — a patient can rebook after cancelling.
+- Slight race condition risk under extreme concurrency — acceptable at this scale.
