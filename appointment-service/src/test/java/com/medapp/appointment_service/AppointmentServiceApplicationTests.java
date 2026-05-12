@@ -15,8 +15,8 @@ class AppointmentServiceApplicationTests {
 
 	@Container
 	@ServiceConnection
-	static final PostgreSQLContainer<?> postgres =
-			new PostgreSQLContainer<>("postgres:16-alpine");
+	static final PostgreSQLContainer postgres =
+			new PostgreSQLContainer("postgres:16-alpine");
 
 	@Container
 	@ServiceConnection
