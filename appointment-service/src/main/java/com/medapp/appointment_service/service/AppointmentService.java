@@ -5,6 +5,8 @@ import com.medapp.appointment_service.domain.AppointmentStatus;
 import com.medapp.appointment_service.dto.AppointmentResponse;
 import com.medapp.appointment_service.dto.CancelAppointmentRequest;
 import com.medapp.appointment_service.dto.CreateAppointmentRequest;
+import com.medapp.appointment_service.event.AppointmentCancelledEvent;
+import com.medapp.appointment_service.event.AppointmentCreatedEvent;
 import com.medapp.appointment_service.exception.AppointmentNotFoundException;
 import com.medapp.appointment_service.repository.AppointmentRepository;
 import org.springframework.data.domain.Page;
@@ -20,11 +22,14 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final PatientValidationService patientValidationService;
+    private final AppointmentEventProducer eventProducer;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
-                              PatientValidationService patientValidationService) {
+                              PatientValidationService patientValidationService,
+                              AppointmentEventProducer eventProducer) {
         this.appointmentRepository = appointmentRepository;
         this.patientValidationService = patientValidationService;
+        this.eventProducer = eventProducer;
     }
 
     public Page<AppointmentResponse> findAll(Pageable pageable) {
@@ -76,7 +81,20 @@ public class AppointmentService {
                 .reason(request.reason())
                 .build();
 
-        return AppointmentResponse.from(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+
+        eventProducer.publishAppointmentCreated(
+                AppointmentCreatedEvent.of(
+                        saved.getId(),
+                        saved.getPatientId(),
+                        saved.getDoctorName(),
+                        saved.getSpecialty(),
+                        saved.getAppointmentDate(),
+                        saved.getReason()
+                )
+        );
+
+        return AppointmentResponse.from(saved);
     }
 
     @Transactional
@@ -97,7 +115,17 @@ public class AppointmentService {
         appointment.setCancelledAt(LocalDateTime.now());
         appointment.setCancelledBy("system");
 
-        return AppointmentResponse.from(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+
+        eventProducer.publishAppointmentCancelled(
+                AppointmentCancelledEvent.of(
+                        saved.getId(),
+                        saved.getPatientId(),
+                        saved.getCancellationReason()
+                )
+        );
+
+        return AppointmentResponse.from(saved);
     }
 
     @Transactional

@@ -39,6 +39,9 @@ class AppointmentServiceTest {
     @Mock
     private PatientValidationService patientValidationService;
 
+    @Mock
+    private AppointmentEventProducer eventProducer;
+
     @InjectMocks
     private AppointmentService appointmentService;
 
@@ -159,6 +162,7 @@ class AppointmentServiceTest {
         void shouldCreateAppointment() {
             // GIVEN — patient exists and no duplicate found
             doNothing().when(patientValidationService).validatePatientExists(10L);
+            doNothing().when(eventProducer).publishAppointmentCreated(any());
             when(appointmentRepository
                     .existsByPatientIdAndDoctorNameAndAppointmentDateAndStatusNot(
                             10L, "Dr. García", futureDate, AppointmentStatus.CANCELLED))
@@ -225,6 +229,7 @@ class AppointmentServiceTest {
         @DisplayName("should cancel a scheduled appointment")
         void shouldCancelScheduledAppointment() {
             // GIVEN
+            doNothing().when(eventProducer).publishAppointmentCancelled(any());
             when(appointmentRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(appointment));
             when(appointmentRepository.save(any(Appointment.class))).thenReturn(appointment);
 
