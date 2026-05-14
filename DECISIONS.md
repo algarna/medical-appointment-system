@@ -365,3 +365,75 @@ Before persisting, the service checks for an existing non-cancelled appointment 
 **Consequences:**
 - Cancelled appointments are excluded from duplicate detection — a patient can rebook after cancelling.
 - Slight race condition risk under extreme concurrency — acceptable at this scale.
+
+---
+
+## ADR-022 — Stateless design: no database in notification-service
+
+**Date:** 2026-05-13
+**Status:** Accepted
+
+**Context:**
+The notification-service reacts to appointment events published by the appointment-service. It needs to send (or simulate) notifications to patients but has no domain state of its own.
+
+**Decision:**
+The notification-service does not persist any data. No database, no Flyway, no JPA.
+
+**Consequences:**
+- Deployment is simpler: no DB container, no migrations.
+- Horizontal scaling is trivial — any instance can process any message.
+- No notification history is available. If that becomes a requirement, a separate audit service or a notifications table in appointment-service would be the right place.
+
+---
+
+## ADR-023 — Dead Letter Topic instead of infinite retries
+
+**Date:** 2026-05-13
+**Status:** Accepted
+
+**Context:**
+Kafka consumers can fail to process a message due to transient errors (downstream unavailability, deserialization issues, unexpected data). A naive retry loop with no upper bound can stall partition consumption and mask systematic bugs.
+
+**Decision:**
+Messages that fail 3 consecutive processing attempts are routed to a `.DLT` topic (`appointment.created.DLT`, `appointment.cancelled.DLT`) via `DeadLetterPublishingRecoverer` with `FixedBackOff(1000ms, 2 retries)`.
+
+**Consequences:**
+- Failed messages are visible and replayable without stopping healthy message flow.
+- The DLT must be monitored in production — unprocessed DLT messages mean lost notifications.
+- Retry count and backoff interval are intentionally conservative for a portfolio project.
+
+---
+
+## ADR-024 — Structured logging instead of real SMTP
+
+**Date:** 2026-05-14
+**Status:** Accepted
+
+**Context:**
+The notification-service is intended to send emails to patients on appointment creation and cancellation. Wiring a real SMTP relay or a mock SMTP server adds infrastructure complexity with no demonstrable benefit at portfolio scope.
+
+**Decision:**
+Email sending is simulated via SLF4J `log.info` with structured key=value fields (`eventId`, `appointmentId`, `patientId`, `patientName`, `appointmentDate`).
+
+**Consequences:**
+- Output is idempotent and verifiable in tests via `OutputCaptureExtension`.
+- No external dependency at runtime.
+- Replacing logs with a real email client (JavaMailSender, SendGrid SDK) requires only modifying `NotificationService` — the consumer and event model are unaffected.
+
+---
+
+## ADR-025 — Explicit KafkaConfig bean (Spring Boot 4 autoconfigure workaround)
+
+**Date:** 2026-05-14
+**Status:** Accepted
+
+**Context:**
+Spring Boot 4's `KafkaAutoConfiguration` does not create `KafkaTemplate` or `ConsumerFactory` beans automatically when configuration properties are provided via `@SpringBootTest`, `@DynamicPropertySource`, or `application.properties` in test scope. The same issue was observed and resolved in appointment-service (see ADR-021).
+
+**Decision:**
+`KafkaConfig` defines all Kafka beans explicitly: `ProducerFactory`, `KafkaTemplate`, and two `ConcurrentKafkaListenerContainerFactory` beans (`createdEventContainerFactory`, `cancelledEventContainerFactory`) — one per event type.
+
+**Consequences:**
+- The Spring-managed `ObjectMapper` (with `JavaTimeModule` pre-registered) is injected directly into the deserializer, ensuring correct `LocalDateTime` handling without extra configuration.
+- Each `@KafkaListener` deserializes directly to its concrete record type without requiring type headers from the producer.
+- More boilerplate than autoconfiguration, but the wiring is explicit and testable.

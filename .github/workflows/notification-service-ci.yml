@@ -1,0 +1,35 @@
+name: notification-service CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'notification-service/**'
+      - '*.md'
+      - '*.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'notification-service/**'
+      - '*.md'
+      - '*.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build and test
+        working-directory: notification-service
+        run: ./mvnw verify
